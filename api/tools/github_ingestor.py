@@ -6,7 +6,7 @@ from typing import Optional
 import requests
 
 from .storage import EventStore, Event
-from .config import ALLOWED_TYPES, GITHUB_EVENTS_URL
+from .config import ALLOWED_TYPES, GITHUB_EVENTS_URL, EVENTS_PER_POLL
 
 
 class GitHubIngestor:
@@ -43,7 +43,12 @@ class GitHubIngestor:
                 headers = {}
                 if self._etag:
                     headers["If-None-Match"] = self._etag
-                r = self._session.get(self.url, headers=headers, timeout=20)
+                r = self._session.get(
+                    self.url,
+                    headers=headers,
+                    params={"per_page": EVENTS_PER_POLL},
+                    timeout=20,
+                )
                 # Record ETag for conditional requests
                 if "ETag" in r.headers:
                     self._etag = r.headers["ETag"]
