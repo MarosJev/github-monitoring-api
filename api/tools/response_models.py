@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 class AvgPRIntervalResponse(BaseModel):
     repo: str
-    count_pr_opened: int
+    count_pr: int
     average_seconds_between_prs: Optional[float]
     average_human_readable: Optional[str]
 

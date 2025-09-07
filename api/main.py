@@ -3,29 +3,22 @@ import os
 from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from io import BytesIO
 
 import matplotlib
 
 matplotlib.use("Agg")  # non-GUI backend for servers
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-# import matplotlib.pyplot as plt
 import uvicorn
 from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI, Query
 from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.routing import APIRoute
 
-from tools import avg_pr_interval, EventStore, GitHubIngestor, AvgPRIntervalResponse, CountsResponse
-from tools.config import POLL_INTERVAL_SECONDS, RETENTION_MINUTES, ALLOWED_TYPES
+from tools import avg_pr_interval, count_event_types, generate_counts_graph, EventStore, GitHubIngestor, \
+    AvgPRIntervalResponse, CountsResponse
+from tools.config import POLL_INTERVAL_SECONDS, RETENTION_MINUTES
 
-if logging.getLogger().hasHandlers():
-    # The Lambda environment pre-configures a handler logging to stderr. If a handler is already configured,
-    # `.basicConfig` does not execute. Thus we set the level directly.
-    logging.getLogger().setLevel(logging.INFO)
-else:
-    logging.getLogger("__main__")
+
+logging.getLogger("__main__")
 
 load_dotenv(find_dotenv(), override=True)
 
@@ -109,13 +102,7 @@ def counts(offset: int = Query(10, ge=1, le=24 * 60, description="Look-back wind
     Return total number of events grouped by type within the last `offset` minutes.
     """
     since = datetime.now(timezone.utc) - timedelta(minutes=offset)
-    events = STORE.recent_since(since)
-    dict_counts: dict[str, int] = defaultdict(int)
-    for e in events:
-        dict_counts[e.type] += 1
-    # Ensure all allowed types appear with at least 0
-    for t in ALLOWED_TYPES:
-        dict_counts.setdefault(t, 0)
+    dict_counts = count_event_types(since=since, store=STORE)
     return CountsResponse(since_utc=since, offset_minutes=offset, counts=dict(dict_counts))
 
 
@@ -125,25 +112,10 @@ def viz_count_events(offset: int = Query(60, ge=5, le=24 * 60, description="Look
     Simple bar chart PNG: counts by event type in the recent window.
     """
     since = datetime.now(timezone.utc) - timedelta(minutes=offset)
-    events = STORE.recent_since(since)
-    dict_counts: dict[str, int] = defaultdict(int)
-    for e in events:
-        dict_counts[e.type] += 1
-    # Sort bars by count desc
-    labels = sorted(dict_counts.keys(), key=lambda k: dict_counts[k], reverse=True)
-    values = [dict_counts[k] for k in labels]
+    dict_counts = count_event_types(since=since, store=STORE)
 
-    fig = Figure(figsize=(6, 3.5), dpi=140)
-    ax = fig.add_subplot(1, 1, 1)
-    ax.bar(labels, values)
-    ax.set_title(f"GitHub events in last {offset} min")
-    ax.set_xlabel("Event type")
-    ax.set_ylabel("Count")
-    fig.tight_layout()
+    buf = generate_counts_graph(dict_counts=dict_counts, offset=offset)
 
-    buf = BytesIO()
-    FigureCanvasAgg(fig).print_png(buf)
-    buf.seek(0)
     return StreamingResponse(buf, media_type="image/png")
 
 
@@ -151,7 +123,7 @@ def viz_count_events(offset: int = Query(60, ge=5, le=24 * 60, description="Look
 @app.get("/repos")
 def repos():
     events = STORE.snapshot()
-    reps = sorted({e.repo for e in events if e.repo})
+    reps = sorted({e.repo for e in events if e.repo and e.type == "PullRequestEvent"})
     return {"repos": reps}
 
 

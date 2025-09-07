@@ -19,6 +19,7 @@ class GitHubIngestor:
         self._etag: Optional[str] = None
 
         self._session = requests.Session()
+        # potential options: having personal access token would allow bigger rate limit - 5000 requests per hour for polling events
         token = os.getenv("GITHUB_TOKEN")
         if token:
             self._session.headers.update({"Authorization": f"Bearer {token}"})
@@ -60,8 +61,8 @@ class GitHubIngestor:
                     payload = r.json()
                     batch = []
                     for item in payload:
-                        etype = item.get("type")
-                        if etype not in ALLOWED_TYPES:
+                        event_type = item.get("type")
+                        if event_type not in ALLOWED_TYPES:
                             continue
                         repo = (item.get("repo") or {}).get("name") or ""
                         created_raw = item.get("created_at")
@@ -71,7 +72,7 @@ class GitHubIngestor:
                             continue
                         ev = Event(
                             id=item.get("id"),
-                            type=etype,
+                            type=event_type,
                             repo=repo,
                             created_at=created_at
                         )
