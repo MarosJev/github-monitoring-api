@@ -6,8 +6,11 @@ from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 import matplotlib
+
 matplotlib.use("Agg")  # non-GUI backend for servers
-import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_agg import FigureCanvasAgg
+# import matplotlib.pyplot as plt
 import uvicorn
 from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI, Query
@@ -36,7 +39,7 @@ def _build_route_index(app: FastAPI) -> dict:
         if isinstance(route, APIRoute) and route.include_in_schema:
             item = {
                 "path": route.path,
-                "methods": sorted(m for m in route.methods if m in {"GET","POST","PUT","PATCH","DELETE"}),
+                "methods": sorted(m for m in route.methods if m in {"GET", "POST", "PUT", "PATCH", "DELETE"}),
                 "name": route.name,
                 "summary": route.summary or route.description or route.name,
             }
@@ -45,6 +48,7 @@ def _build_route_index(app: FastAPI) -> dict:
                 groups[t].append(item)
     # stable sort
     return {k: sorted(v, key=lambda x: (x["path"], x["methods"])) for k, v in sorted(groups.items())}
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -67,8 +71,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(title="GitHub Events Monitor",
               description="Streams selected GitHub events and serves metrics.",
               version="1.0.0",
-              lifespan=lifespan,
-              debug=True)
+              lifespan=lifespan)
 
 
 @app.get("/favicon.ico", include_in_schema=False)
@@ -76,18 +79,6 @@ def favicon():
     return FileResponse(os.path.join(os.path.dirname(__file__), "favicon.ico"))
 
 
-# @app.get("/", include_in_schema=False)
-# def root():
-#     return {
-#         "service": "GitHub Events Monitor",
-#         "status": "ok",
-#         "docs": "/docs",
-#         "metrics": {
-#             "avg_pr_interval": "/metrics/avg-pr-interval",
-#             "counts": "/metrics/counts",
-#             "viz": "/viz/events.png"
-#         }
-#     }
 @app.get("/", include_in_schema=False)
 def root():
     return app.state.landing
@@ -103,7 +94,7 @@ def display_all_events():
     return {"all_events": STORE.snapshot()}
 
 
-@app.get("/metrics/avg-pr-interval", response_model=AvgPRIntervalResponse)
+@app.get("/metrics/avg-pr-interval", tags=['metric'], response_model=AvgPRIntervalResponse)
 def avg_pr_interval_handler(repo: str = Query(..., description='Repository in "owner/name" format')):
     """
     Average time between *opened* PullRequestEvent occurrences for the given repo.
@@ -112,7 +103,7 @@ def avg_pr_interval_handler(repo: str = Query(..., description='Repository in "o
     return avg_pr_interval(store=STORE, repo=repo)
 
 
-@app.get("/metrics/counts", response_model=CountsResponse)
+@app.get("/metrics/counts", tags=['metric'], response_model=CountsResponse)
 def counts(offset: int = Query(10, ge=1, le=24 * 60, description="Look-back window in minutes")):
     """
     Return total number of events grouped by type within the last `offset` minutes.
@@ -128,30 +119,30 @@ def counts(offset: int = Query(10, ge=1, le=24 * 60, description="Look-back wind
     return CountsResponse(since_utc=since, offset_minutes=offset, counts=dict(dict_counts))
 
 
-@app.get("/viz/events.png")
-def viz_events(offset: int = Query(60, ge=5, le=24 * 60, description="Look-back window in minutes")):
+@app.get("/viz/counts.png", tags=['Visualisation'])
+def viz_count_events(offset: int = Query(60, ge=5, le=24 * 60, description="Look-back window in minutes")):
     """
     Simple bar chart PNG: counts by event type in the recent window.
     """
     since = datetime.now(timezone.utc) - timedelta(minutes=offset)
     events = STORE.recent_since(since)
-    counts: dict[str, int] = defaultdict(int)
+    dict_counts: dict[str, int] = defaultdict(int)
     for e in events:
-        counts[e.type] += 1
+        dict_counts[e.type] += 1
     # Sort bars by count desc
-    labels = sorted(counts.keys(), key=lambda k: counts[k], reverse=True)
-    values = [counts[k] for k in labels]
+    labels = sorted(dict_counts.keys(), key=lambda k: dict_counts[k], reverse=True)
+    values = [dict_counts[k] for k in labels]
 
-    fig = plt.figure(figsize=(6, 3.5), dpi=140)
-    plt.bar(labels, values)
-    plt.title(f"GitHub events in last {offset} min")
-    plt.xlabel("Event type")
-    plt.ylabel("Count")
-    plt.tight_layout()
+    fig = Figure(figsize=(6, 3.5), dpi=140)
+    ax = fig.add_subplot(1, 1, 1)
+    ax.bar(labels, values)
+    ax.set_title(f"GitHub events in last {offset} min")
+    ax.set_xlabel("Event type")
+    ax.set_ylabel("Count")
+    fig.tight_layout()
 
     buf = BytesIO()
-    fig.savefig(buf, format="png")
-    plt.close(fig)
+    FigureCanvasAgg(fig).print_png(buf)
     buf.seek(0)
     return StreamingResponse(buf, media_type="image/png")
 
