@@ -67,14 +67,9 @@ From here you can visit *http://0.0.0.0:8080/docs* for a swagger interface to ex
 Endpoint: `/metrics/avg-pr-interval`
 
 Formula:
-$$
-\overline{\Delta t} = \frac{1}{n-1} \sum_{i=1}^{n-1} (t_{i+1} - t_i)
-$$
-
-![formula](https://latex.codecogs.com/svg.image?\bg{white}\dpi{160}\overline{\Delta%20t}%20=%20\frac{1}{n-1}%20\sum_{i=1}^{n-1}%20(t_{i+1}%20-%20t_i))
-
-
-
+```math
+\overline{\Delta t} = \frac{1}{n-1} \sum_{i=1}^{n-1} \left(t_{i+1} - t_i\right)
+```
 where in our case $t_i$ is `created_at` datetime property of PullRequestEvent event.
 
 NOTE:
