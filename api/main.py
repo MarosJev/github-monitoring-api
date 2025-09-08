@@ -1,50 +1,32 @@
 import logging
 import os
-from collections import defaultdict
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
 
 import matplotlib
 
 matplotlib.use("Agg")  # non-GUI backend for servers
 import uvicorn
 from dotenv import load_dotenv, find_dotenv
-from fastapi import FastAPI, Query
-from fastapi.responses import StreamingResponse, FileResponse
-from fastapi.routing import APIRoute
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
 
-from tools import avg_pr_interval, count_event_types, generate_counts_graph, EventStore, GitHubIngestor, \
-    AvgPRIntervalResponse, CountsResponse
-from tools.config import POLL_INTERVAL_SECONDS, RETENTION_MINUTES
-
+from api.config import POLL_INTERVAL_SECONDS, RETENTION_MINUTES
+from api.services.storage import EventStore
+from api.services.github_ingestor import GitHubIngestor
+from api.routers.meta import build_route_index
+from api.routers import meta, metrics, viz
 
 logging.getLogger("__main__")
 
 load_dotenv(find_dotenv(), override=True)
 
-STORE = EventStore(retention_minutes=RETENTION_MINUTES)
-INGESTOR = GitHubIngestor(store=STORE, poll_interval=POLL_INTERVAL_SECONDS)
-
-
-def _build_route_index(app: FastAPI) -> dict:
-    groups = defaultdict(list)
-    for route in app.routes:
-        if isinstance(route, APIRoute) and route.include_in_schema:
-            item = {
-                "path": route.path,
-                "methods": sorted(m for m in route.methods if m in {"GET", "POST", "PUT", "PATCH", "DELETE"}),
-                "name": route.name,
-                "summary": route.summary or route.description or route.name,
-            }
-            tags = route.tags or ["untagged"]
-            for t in tags:
-                groups[t].append(item)
-    # stable sort
-    return {k: sorted(v, key=lambda x: (x["path"], x["methods"])) for k, v in sorted(groups.items())}
+INGESTOR = GitHubIngestor(poll_interval=POLL_INTERVAL_SECONDS)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    app.state.store = EventStore(retention_minutes=RETENTION_MINUTES)
+    INGESTOR.configure(store=app.state.store)
     # Startup
     INGESTOR.start()
     # build once after routes are registered
@@ -53,7 +35,7 @@ async def lifespan(_: FastAPI):
         "status": "ok",
         # relative paths so we don't need a Request to compute absolute URLs
         "docs": {"swagger": "/docs", "redoc": "/redoc"},
-        "endpoints": _build_route_index(app),
+        "endpoints": build_route_index(app),
     }
 
     yield
@@ -72,60 +54,16 @@ def favicon():
     return FileResponse(os.path.join(os.path.dirname(__file__), "favicon.ico"))
 
 
+# Routers
+app.include_router(meta.router)
+app.include_router(metrics.router)
+app.include_router(viz.router)
+
+
 @app.get("/", include_in_schema=False)
 def root():
     return app.state.landing
 
 
-@app.get("/health")
-def health():
-    return {"status": "ok", "stored_events": len(STORE.snapshot())}
-
-
-@app.get("/all-events")
-def display_all_events():
-    return {"all_events": STORE.snapshot()}
-
-
-@app.get("/metrics/avg-pr-interval", tags=['metric'], response_model=AvgPRIntervalResponse)
-def avg_pr_interval_handler(repo: str = Query(..., description='Repository in "owner/name" format')):
-    """
-    Average time between *opened* PullRequestEvent occurrences for the given repo.
-    Requires at least two PR openings observed in the retained window.
-    """
-    return avg_pr_interval(store=STORE, repo=repo)
-
-
-@app.get("/metrics/counts", tags=['metric'], response_model=CountsResponse)
-def counts(offset: int = Query(10, ge=1, le=24 * 60, description="Look-back window in minutes")):
-    """
-    Return total number of events grouped by type within the last `offset` minutes.
-    """
-    since = datetime.now(timezone.utc) - timedelta(minutes=offset)
-    dict_counts = count_event_types(since=since, store=STORE)
-    return CountsResponse(since_utc=since, offset_minutes=offset, counts=dict(dict_counts))
-
-
-@app.get("/viz/counts.png", tags=['Visualisation'])
-def viz_count_events(offset: int = Query(60, ge=5, le=24 * 60, description="Look-back window in minutes")):
-    """
-    Simple bar chart PNG: counts by event type in the recent window.
-    """
-    since = datetime.now(timezone.utc) - timedelta(minutes=offset)
-    dict_counts = count_event_types(since=since, store=STORE)
-
-    buf = generate_counts_graph(dict_counts=dict_counts, offset=offset)
-
-    return StreamingResponse(buf, media_type="image/png")
-
-
-# Optional: expose what repos are currently seen (useful for discovery)
-@app.get("/repos")
-def repos():
-    events = STORE.snapshot()
-    reps = sorted({e.repo for e in events if e.repo and e.type == "PullRequestEvent"})
-    return {"repos": reps}
-
-
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", "8080")))
+    uvicorn.run("api.main:app", host="0.0.0.0", port=int(os.environ.get("PORT", "8080")))

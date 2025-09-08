@@ -4,6 +4,13 @@ from typing import Optional
 from pydantic import BaseModel
 
 
+class Event(BaseModel):
+    id: str
+    type: str
+    repo: str  # "owner/name"
+    created_at: datetime  # timezone-aware UTC
+
+
 class AvgPRIntervalResponse(BaseModel):
     repo: str
     count_pr: int

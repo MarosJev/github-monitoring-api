@@ -1,30 +1,33 @@
 from datetime import datetime
-import os
 import threading
 from typing import Optional
 
 import requests
 
-from .storage import EventStore, Event
-from .config import ALLOWED_TYPES, GITHUB_EVENTS_URL, EVENTS_PER_POLL
+from api.services.storage import EventStore, Event
+from api.config import ALLOWED_TYPES, GITHUB_EVENTS_URL, EVENTS_PER_POLL
 
 
 class GitHubIngestor:
-    def __init__(self, store: EventStore, poll_interval: int = 60, url: str = GITHUB_EVENTS_URL):
+    def __init__(self, poll_interval: int = 60, url: str = GITHUB_EVENTS_URL):
         self.url = url
-        self.store = store
         self.poll_interval = poll_interval
         self._thread: Optional[threading.Thread] = None
         self._stop = threading.Event()
+        self.store: Optional[EventStore] = None
         self._etag: Optional[str] = None
 
         self._session = requests.Session()
-        # potential options: having personal access token would allow bigger rate limit - 5000 requests per hour for polling events
-        token = os.getenv("GITHUB_TOKEN")
-        if token:
-            self._session.headers.update({"Authorization": f"Bearer {token}"})
+        # TODO: potential options: having personal access token would allow bigger rate limit - 5000 requests per hour for polling events
+        #       for our demo purposes, we stick with rate 60 requests from GitHub endpoint per hour with 100 events in each request
+        # token = os.getenv("GITHUB_TOKEN")
+        # if token:
+        #     self._session.headers.update({"Authorization": f"Bearer {token}"})
         self._session.headers.update({"Accept": "application/vnd.github+json",
                                       "X-GitHub-Api-Version": "2022-11-28"})
+
+    def configure(self, store: EventStore):
+        self.store = store
 
     def start(self):
         if self._thread and self._thread.is_alive():

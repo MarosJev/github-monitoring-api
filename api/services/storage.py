@@ -1,19 +1,15 @@
-from pydantic import BaseModel
-from datetime import datetime, timedelta, timezone
-from collections import deque
 import threading
+from collections import deque
+from datetime import datetime, timedelta, timezone
 
+from api.schemas import Event
 
-class Event(BaseModel):
-    id: str
-    type: str
-    repo: str              # "owner/name"
-    created_at: datetime   # timezone-aware UTC
 
 class EventStore:
     """
     Thread-safe, in-memory, time-pruned event store.
     """
+
     def __init__(self, retention_minutes: int = 4320, store_limit: int = 100_000):
         self._events: deque[Event] = deque(maxlen=store_limit)
         self._seen_ids: set[str] = set()
