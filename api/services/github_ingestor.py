@@ -1,11 +1,11 @@
-from datetime import datetime
 import threading
+from datetime import datetime
 from typing import Optional
 
 import requests
 
-from api.services.storage import EventStore, Event
 from api.config import ALLOWED_TYPES, GITHUB_EVENTS_URL, EVENTS_PER_POLL
+from api.services.storage import EventStore, Event
 
 
 class GitHubIngestor:

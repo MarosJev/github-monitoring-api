@@ -1,9 +1,10 @@
 from collections import defaultdict
 
-from fastapi import APIRouter, Depends, FastAPI
+from fastapi import APIRouter, Depends, FastAPI, Query
 from fastapi.routing import APIRoute
 
 from api.deps import get_store
+from api.services.storage import EventStore
 
 router = APIRouter(prefix="/meta", tags=["meta"])
 
@@ -25,11 +26,19 @@ def build_route_index(app: FastAPI) -> dict:
     return {k: sorted(v, key=lambda x: (x["path"], x["methods"])) for k, v in sorted(groups.items())}
 
 
-@router.get("/repos")
-def repos(store=Depends(get_store)):
+@router.get("/repos", summary="List repos with PullRequestEvents above a threshold")
+def repos(
+    store: EventStore = Depends(get_store),
+    min_prs: int = Query(2, ge=2, description="Minimum number of PullRequestEvents required"),
+):
     events = store.snapshot()
-    reps = sorted({e.repo for e in events if e.repo and e.type == "PullRequestEvent"})
-    return {"repos": reps}
+    counts: dict[str, int] = {}
+    for e in events:
+        if e.type == "PullRequestEvent" and e.repo:
+            counts[e.repo] = counts.get(e.repo, 0) + 1
+
+    l_repos = sorted([repo for repo, c in counts.items() if c >= min_prs])
+    return {"min_prs": min_prs, "repos": l_repos}
 
 
 @router.get("/health")

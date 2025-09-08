@@ -41,6 +41,9 @@ To install dependencies, run:
 pip install -r requirements.txt
 ```
 
+NOTE:
+<br/>For the demo purposes, some events have been added manually for better experience during the average metric testing. You can change this by changing `LOAD_AVG_METRICS_TESTING_EVENTS` boolean in *api/config.py*.
+
 Once the dependencies are installed, you are ready to run the API.
 ```commandline
 python3 -m api.main
@@ -70,6 +73,9 @@ $$
 
 where in our case $t_i$ is `created_at` datetime property of PullRequestEvent event.
 
+NOTE:
+<br/>Feel free to use the `/meta/repos` endpoint to explore available repositories. The endpoint allows you to define a threshold of minimum counts of PullRequestEvent per repository with minimum count 2.
+
 ### Total number of events grouped by the event type for a given offset
 
 Endpoint: `/metrics/counts`
@@ -79,3 +85,5 @@ Visualization endpoint: `/viz/counts.png`
 Example graph:
 ![Count grouped by event type for provided offset](count_groupby_eventtype.png)
 
+## Possible future improvements
+- Adding a support to provide a personal GitHub access token. This could increase rate limit for GitHub events API endpoint from 60 to 5000 and allow a more detailed monitoring.

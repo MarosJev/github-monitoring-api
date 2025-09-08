@@ -10,11 +10,12 @@ from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 
-from api.config import POLL_INTERVAL_SECONDS, RETENTION_MINUTES
+from api.config import POLL_INTERVAL_SECONDS, RETENTION_MINUTES, TESTING_DATA
 from api.services.storage import EventStore
 from api.services.github_ingestor import GitHubIngestor
 from api.routers.meta import build_route_index
 from api.routers import meta, metrics, viz
+from api.schemas import Event
 
 logging.getLogger("__main__")
 
@@ -26,6 +27,10 @@ INGESTOR = GitHubIngestor(poll_interval=POLL_INTERVAL_SECONDS)
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     app.state.store = EventStore(retention_minutes=RETENTION_MINUTES)
+    # For demo purposes
+    if TESTING_DATA:
+        app.state.store.add_events([Event.model_validate(el) for el in TESTING_DATA])
+
     INGESTOR.configure(store=app.state.store)
     # Startup
     INGESTOR.start()
