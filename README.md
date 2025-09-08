@@ -1,4 +1,4 @@
-# Welcome to GitHub Monitoring API project
+# Welcome to GitHub Events Monitor project
 *Prepared by Maros Jevocin*
 
 ## Introduction
