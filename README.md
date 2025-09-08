@@ -70,7 +70,7 @@ Formula:
 ```math
 \overline{\Delta t} = \frac{1}{n-1} \sum_{i=1}^{n-1} \left(t_{i+1} - t_i\right)
 ```
-where in our case $t_i$ is `created_at` datetime property of $i$-th PullRequestEvent event.
+where in our case $t_i$ is `created_at` datetime property of $i$-th PullRequestEvent event and $n$ is number of PullRequestEvent for a provided repository.
 
 NOTE:
 <br/>Feel free to use the `/meta/repos` endpoint to explore available repositories. The endpoint allows you to define a threshold of minimum counts of PullRequestEvent per repository with minimum count 2.
