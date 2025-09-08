@@ -87,3 +87,4 @@ Example graph:
 
 ## Possible future improvements
 - Adding a support to provide a personal GitHub access token. This could increase rate limit for GitHub events API endpoint from 60 to 5000 and allow a more detailed monitoring.
+- Scanning of the EventStore instance is linear at the moment. This could be improved by a more optimized search, since a deque is adding events in a chronological order
