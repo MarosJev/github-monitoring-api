@@ -19,7 +19,5 @@ if LOAD_AVG_METRICS_TESTING_EVENTS:
     test_file = project_root / "testing-data" / "testing_avg_prs_interval_events.json"
     with test_file.open('r') as f:
         TESTING_DATA = json.load(f)['all_events']
-    for el in TESTING_DATA:
-        el['created_at'] = el['created_at'].replace
 else:
     TESTING_DATA = []
