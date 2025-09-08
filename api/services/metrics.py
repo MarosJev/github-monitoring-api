@@ -1,5 +1,5 @@
-from datetime import datetime
 from collections import defaultdict
+from datetime import datetime
 
 from api.config import ALLOWED_TYPES
 from api.schemas import AvgPRIntervalResponse

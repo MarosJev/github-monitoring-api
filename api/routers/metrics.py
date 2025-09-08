@@ -2,6 +2,7 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Query, Depends
 
+from api.config import RETENTION_MINUTES
 from api.deps import get_store
 from api.schemas import AvgPRIntervalResponse, CountsResponse
 from api.services.metrics import count_event_types, avg_pr_interval
@@ -21,7 +22,7 @@ def avg_pr_interval_handler(repo: str = Query(..., description='Repository in "o
 
 
 @router.get("/counts", response_model=CountsResponse)
-def counts(offset: int = Query(10, ge=1, le=24 * 60, description="Look-back window in minutes"),
+def counts(offset: int = Query(10, ge=1, le=RETENTION_MINUTES, description="Look-back window in minutes"),
            store: EventStore = Depends(get_store)):
     """
     Return total number of events grouped by type within the last `offset` minutes.

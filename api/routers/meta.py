@@ -28,8 +28,8 @@ def build_route_index(app: FastAPI) -> dict:
 
 @router.get("/repos", summary="List repos with PullRequestEvents above a threshold")
 def repos(
-    store: EventStore = Depends(get_store),
-    min_prs: int = Query(2, ge=2, description="Minimum number of PullRequestEvents required"),
+        store: EventStore = Depends(get_store),
+        min_prs: int = Query(2, ge=2, description="Minimum number of PullRequestEvents required"),
 ):
     events = store.snapshot()
     counts: dict[str, int] = {}
