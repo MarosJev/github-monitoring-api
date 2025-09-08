@@ -16,8 +16,8 @@ EVENTS_PER_POLL = int(os.getenv("EVENTS_PER_POLL", "100"))
 
 if LOAD_AVG_METRICS_TESTING_EVENTS:
     project_root = Path(__file__).resolve().parent.parent
-    test_file = project_root / "testing-data" / "testing_avg_prs_interval_events.json"
+    test_file = project_root / "demo-data" / "demo_avg_prs_interval_events.json"
     with test_file.open('r') as f:
-        TESTING_DATA = json.load(f)['all_events']
+        TESTING_DATA = json.load(f)
 else:
     TESTING_DATA = []
